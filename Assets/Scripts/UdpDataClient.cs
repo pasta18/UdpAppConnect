@@ -59,9 +59,23 @@ public class UdpDataClient
                 {
                     Debug.Log("Run");
                     var length = sock.ReceiveFrom(packet, ref remote);
-                    var data = Encoding.UTF8.GetString(packet);
 
-                    this.OnReceive(data);
+                    if (length < DualLeap.LeapDisassembly.Size)
+                    {
+                        if (PACKET_SIZE >= DualLeap.LeapDisassembly.Size)
+                        {
+                            continue;
+                        }
+
+                        var data = Encoding.UTF8.GetString(packet);
+
+                        this.OnReceive(data);
+                    }
+                    else
+                    {
+                        // サーバー側の処理
+                        this.OnReceive(BitConverter.ToString(packet));
+                    }
                 }
             }));
         }
@@ -73,10 +87,12 @@ public class UdpDataClient
 
                 if (ipAddress == null) address = IPAddress.Loopback;
                 else
-                {
+                {                    
                     address = ipAddress;
                 }
                 var remote = new IPEndPoint(address, port);
+
+                Debug.Log(address.ToString());
 
                 sock.Connect("localhost", port);
 
@@ -109,19 +125,23 @@ public class UdpDataClient
     // 通信終了
     public void EndSocket()
     {
+        Debug.Log("End");
+
         if (isRunningWork)
         {
             isRunningWork = false;
 
-            if (!isServer)
+            if (isServer)
             {
-                runWorkThread.Join();
+                UdpDataClient udp = new UdpDataClient(false);
+
+                udp.Send("Quit");
+
+                udp.EndSocket();
             }
             else
             {
-                UdpDataClient udp = new UdpDataClient(false);
-                udp.Send("Exit");
-                udp.EndSocket();
+                runWorkThread.Join();
             }
         }
         if (sock != null)
@@ -134,6 +154,13 @@ public class UdpDataClient
     public void Send(string data)
     {
         packet = Encoding.UTF8.GetBytes(data);
+        isSend = true;
+    }
+
+    public void Send(byte[] bytes)
+    {
+        if (isSend) return;
+        packet = bytes;
         isSend = true;
     }
 }
